@@ -24,8 +24,9 @@ use bevy::{
         view::ExtractedWindows,
     },
     window::WindowId,
+    prelude::Resource
 };
-
+#[derive(Resource)]
 pub struct EguiPipeline {
     pipeline: RenderPipeline,
 

@@ -1,7 +1,7 @@
 use bevy::{prelude::*, render::camera::Projection};
 use bevy_egui::{egui, EguiContext, EguiPlugin};
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 struct OccupiedScreenSpace {
     left: f32,
     top: f32,
@@ -9,8 +9,9 @@ struct OccupiedScreenSpace {
     bottom: f32,
 }
 
-const CAMERA_TARGET: Vec3 = Vec3::ZERO;
+const CAMERA_TARGET: DVec3 = DVec3::ZERO;
 
+#[derive(Resource)]
 struct OriginalCameraTransform(Transform);
 
 fn main() {
@@ -67,18 +68,18 @@ fn setup_system(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    commands.spawn_bundle(PbrBundle {
+    commands.spawn(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..Default::default()
     });
-    commands.spawn_bundle(PbrBundle {
+    commands.spawn(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
         material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
         transform: Transform::from_xyz(0.0, 0.5, 0.0),
         ..Default::default()
     });
-    commands.spawn_bundle(PointLightBundle {
+    commands.spawn(PointLightBundle {
         point_light: PointLight {
             intensity: 1500.0,
             shadows_enabled: true,
@@ -88,12 +89,12 @@ fn setup_system(
         ..Default::default()
     });
 
-    let camera_pos = Vec3::new(-2.0, 2.5, 5.0);
+    let camera_pos = DVec3::new(-2.0, 2.5, 5.0);
     let camera_transform =
-        Transform::from_translation(camera_pos).looking_at(CAMERA_TARGET, Vec3::Y);
+        Transform::from_translation(camera_pos).looking_at(CAMERA_TARGET, DVec3::Y);
     commands.insert_resource(OriginalCameraTransform(camera_transform));
 
-    commands.spawn_bundle(Camera3dBundle {
+    commands.spawn(Camera3dBundle {
         transform: camera_transform,
         ..Default::default()
     });
@@ -111,17 +112,17 @@ fn update_camera_transform_system(
     };
 
     let distance_to_target = (CAMERA_TARGET - original_camera_transform.0.translation).length();
-    let frustum_height = 2.0 * distance_to_target * (camera_projection.fov * 0.5).tan();
-    let frustum_width = frustum_height * camera_projection.aspect_ratio;
+    let frustum_height = 2.0 * distance_to_target * (camera_projection.fov as f64 * 0.5).tan();
+    let frustum_width = frustum_height * camera_projection.aspect_ratio as f64;
 
     let window = windows.get_primary().unwrap();
 
-    let left_taken = occupied_screen_space.left / window.width();
-    let right_taken = occupied_screen_space.right / window.width();
-    let top_taken = occupied_screen_space.top / window.height();
-    let bottom_taken = occupied_screen_space.bottom / window.height();
+    let left_taken = occupied_screen_space.left as f64 / window.width() as f64;
+    let right_taken = occupied_screen_space.right as f64 / window.width() as f64;
+    let top_taken = occupied_screen_space.top as f64 / window.height() as f64;
+    let bottom_taken = occupied_screen_space.bottom as f64 / window.height() as f64;
     transform.translation = original_camera_transform.0.translation
-        + transform.rotation.mul_vec3(Vec3::new(
+        + transform.rotation.mul_vec3(DVec3::new(
             (right_taken - left_taken) * frustum_width * 0.5,
             (top_taken - bottom_taken) * frustum_height * 0.5,
             0.0,

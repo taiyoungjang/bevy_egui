@@ -1,6 +1,6 @@
 use crate::{
     egui_node::EguiPipeline, EguiContext, EguiManagedTextures, EguiRenderOutput, EguiSettings,
-    WindowSize,
+    WindowSize
 };
 use bevy::{
     asset::HandleId,
@@ -19,9 +19,13 @@ use bevy::{
     window::WindowId,
 };
 
+#[derive(Resource)]
 pub(crate) struct ExtractedRenderOutput(pub HashMap<WindowId, EguiRenderOutput>);
+#[derive(Resource)]
 pub(crate) struct ExtractedWindowSizes(pub HashMap<WindowId, WindowSize>);
+#[derive(Resource)]
 pub(crate) struct ExtractedEguiSettings(pub EguiSettings);
+#[derive(Resource)]
 pub(crate) struct ExtractedEguiContext(pub HashMap<WindowId, egui::Context>);
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -31,7 +35,7 @@ pub(crate) enum EguiTexture {
     /// Textures allocated via bevy.
     User(u64),
 }
-
+#[derive(Resource)]
 pub(crate) struct ExtractedEguiTextures {
     pub(crate) egui_textures: HashMap<(WindowId, u64), Handle<Image>>,
     pub(crate) user_textures: HashMap<Handle<Image>, u64>,
@@ -54,15 +58,15 @@ impl ExtractedEguiTextures {
 
 pub(crate) fn extract_egui_render_data(
     mut commands: Commands,
-    egui_render_output: Extract<Res<HashMap<WindowId, EguiRenderOutput>>>,
-    window_sizes: Extract<Res<HashMap<WindowId, WindowSize>>>,
+    egui_render_output: Extract<Res<crate::WindowEguiRenderOutput>>,
+    window_sizes: Extract<Res<crate::WindowSizes>>,
     egui_settings: Extract<Res<EguiSettings>>,
     egui_context: Extract<Res<EguiContext>>,
 ) {
-    commands.insert_resource(ExtractedRenderOutput(egui_render_output.clone()));
+    commands.insert_resource(ExtractedRenderOutput(egui_render_output.windows.clone()));
     commands.insert_resource(ExtractedEguiSettings(egui_settings.clone()));
     commands.insert_resource(ExtractedEguiContext(egui_context.ctx.clone()));
-    commands.insert_resource(ExtractedWindowSizes(window_sizes.clone()));
+    commands.insert_resource(ExtractedWindowSizes(window_sizes.windows.clone()));
 }
 
 pub(crate) fn extract_egui_textures(
@@ -82,7 +86,7 @@ pub(crate) fn extract_egui_textures(
     });
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 pub(crate) struct EguiTransforms {
     pub buffer: DynamicUniformBuffer<EguiTransform>,
     pub offsets: HashMap<WindowId, u32>,
@@ -148,7 +152,7 @@ pub(crate) fn prepare_egui_transforms(
         };
     }
 }
-
+#[derive(Resource)]
 pub(crate) struct EguiTextureBindGroups {
     pub(crate) bind_groups: HashMap<EguiTexture, BindGroup>,
 }

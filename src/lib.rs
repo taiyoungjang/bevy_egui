@@ -64,7 +64,7 @@ use bevy::{
     asset::{AssetEvent, Assets, Handle},
     ecs::{
         event::EventReader,
-        schedule::{ParallelSystemDescriptorCoercion, SystemLabel},
+        schedule::{SystemLabel},
         system::ResMut,
     },
     input::InputSystem,
@@ -72,6 +72,7 @@ use bevy::{
     render::{render_graph::RenderGraph, texture::Image, RenderApp, RenderStage},
     utils::HashMap,
     window::WindowId,
+    prelude::{Resource, IntoSystemDescriptor},
 };
 use egui_node::EguiNode;
 use render_systems::EguiTransforms;
@@ -84,7 +85,7 @@ use thread_local::ThreadLocal;
 pub struct EguiPlugin;
 
 /// A resource for storing global UI settings.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Resource)]
 pub struct EguiSettings {
     /// Global scale factor for egui widgets (`1.0` by default).
     ///
@@ -129,7 +130,7 @@ pub struct EguiInput {
 ///
 /// The resource is available only if `manage_clipboard` feature is enabled.
 #[cfg(feature = "manage_clipboard")]
-#[derive(Default)]
+#[derive(Default, Resource)]
 pub struct EguiClipboard {
     #[cfg(not(target_arch = "wasm32"))]
     clipboard: ThreadLocal<Option<RefCell<Clipboard>>>,
@@ -198,7 +199,7 @@ impl EguiClipboard {
 }
 
 /// Is used for storing Egui shapes. The actual resource is `HashMap<WindowId, EguiShapes>`.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, Resource)]
 pub struct EguiRenderOutput {
     /// Pairs of rectangles and paint commands.
     ///
@@ -217,7 +218,7 @@ pub struct EguiOutput {
 }
 
 /// A resource for storing `bevy_egui` context.
-#[derive(Clone)]
+#[derive(Clone, Resource)]
 pub struct EguiContext {
     ctx: HashMap<WindowId, egui::Context>,
     user_textures: HashMap<Handle<Image>, u64>,
@@ -433,10 +434,10 @@ impl Plugin for EguiPlugin {
     fn build(&self, app: &mut App) {
         let world = &mut app.world;
         world.insert_resource(EguiSettings::default());
-        world.insert_resource(HashMap::<WindowId, EguiInput>::default());
-        world.insert_resource(HashMap::<WindowId, EguiOutput>::default());
-        world.insert_resource(HashMap::<WindowId, WindowSize>::default());
-        world.insert_resource(HashMap::<WindowId, EguiRenderOutput>::default());
+        world.insert_resource(WindowEguiInput::default());
+        world.insert_resource(WindowEguiOutput::default());
+        world.insert_resource(WindowSizes::default());
+        world.insert_resource(WindowEguiRenderOutput::default());
         world.insert_resource(EguiManagedTextures::default());
         #[cfg(feature = "manage_clipboard")]
         world.insert_resource(EguiClipboard::default());
@@ -490,7 +491,7 @@ impl Plugin for EguiPlugin {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 pub(crate) struct EguiManagedTextures(HashMap<(WindowId, u64), EguiManagedTexture>);
 
 pub(crate) struct EguiManagedTexture {
@@ -498,13 +499,39 @@ pub(crate) struct EguiManagedTexture {
     /// Stored in full so we can do partial updates (which bevy doesn't support).
     color_image: egui::ColorImage,
 }
+/// HashMap WindowEguiInput
+#[derive(Resource, Default)]
+pub struct WindowEguiInput
+{
+    windows: HashMap<WindowId,EguiInput>
+}
 
+/// HashMap WindowEguiOutput
+#[derive(Resource, Default)]
+pub struct WindowEguiOutput
+{
+    windows: HashMap<WindowId,EguiOutput>
+}
+
+/// HashMap WindowSizes
+#[derive(Resource, Default)]
+pub struct WindowSizes
+{
+    windows: HashMap<WindowId,WindowSize>
+}
+
+/// HashMap WindowEguiRenderOutput
+#[derive(Resource, Default)]
+pub struct WindowEguiRenderOutput
+{
+    windows: HashMap<WindowId,EguiRenderOutput>
+}
 fn update_egui_textures(
-    mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
+    mut egui_render_output: ResMut<WindowEguiRenderOutput>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
 ) {
-    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
+    for (&window_id, egui_render_output) in egui_render_output.windows.iter_mut() {
         let set_textures = std::mem::take(&mut egui_render_output.textures_delta.set);
 
         for (texture_id, image_delta) in set_textures {
@@ -553,12 +580,12 @@ fn update_egui_textures(
 
 fn free_egui_textures(
     mut egui_context: ResMut<EguiContext>,
-    mut egui_render_output: ResMut<HashMap<WindowId, EguiRenderOutput>>,
+    mut egui_render_output: ResMut<WindowEguiRenderOutput>,
     mut egui_managed_textures: ResMut<EguiManagedTextures>,
     mut image_assets: ResMut<Assets<Image>>,
     mut image_events: EventReader<AssetEvent<Image>>,
 ) {
-    for (&window_id, egui_render_output) in egui_render_output.iter_mut() {
+    for (&window_id, egui_render_output) in egui_render_output.windows.iter_mut() {
         let free_textures = std::mem::take(&mut egui_render_output.textures_delta.free);
         for texture_id in free_textures {
             if let egui::TextureId::Managed(texture_id) = texture_id {
